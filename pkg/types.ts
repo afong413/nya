@@ -50,6 +50,7 @@ export type PackageCategory =
   | "substitution"
   | "symbolic computation"
   | "trigonometry"
+  | "linear algebra"
 
 // SHAPE: maybe use consistent shapes
 export interface Package {

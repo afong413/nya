@@ -56,6 +56,7 @@ export const addons = {
   "special": () => import("$/special"),
   "unit/pkg": () => import("$/unit/pkg"),
   "withseq": () => import("$/withseq"),
+  "linalg/core": () => import("$/linalg/core"),
 }
 Object.setPrototypeOf(addons, null)
 
