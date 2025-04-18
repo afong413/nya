@@ -5,7 +5,7 @@ import { FnDist } from "@/eval/ops/dist"
 import { each, type JsValue, type Val } from "@/eval/ty"
 import { num, real, SNANPT, unpt } from "@/eval/ty/create"
 import { TY_INFO } from "@/eval/ty/info"
-import { neg } from "@/eval/ty/ops"
+import { add, div, sub } from "@/eval/ty/ops"
 import { CmdComma } from "@/field/cmd/leaf/comma"
 import { CmdWord } from "@/field/cmd/leaf/word"
 import { CmdBrack } from "@/field/cmd/math/brack"
@@ -27,7 +27,7 @@ declare module "@/eval/ty" {
       data: Val<"image">
       p1: SPoint
       p2: SPoint
-      aspect: SReal | null
+      p3: SPoint
     }
   }
 }
@@ -39,19 +39,53 @@ const FN_IMAGE = new FnDist(
   .add(
     ["image", "segment"],
     "image2d",
-    (a, b) => ({ data: a.value, p1: b.value[0], p2: b.value[1], aspect: null }),
+    (a, b) => {
+      // p3 is 90 deg CCW from p2
+
+      const x3 = real(
+        num(b.value[0].x) -
+          ((num(b.value[1].y) - num(b.value[0].y)) * a.value.height) /
+            a.value.width,
+      )
+
+      const y3 = real(
+        num(b.value[0].y) +
+          ((num(b.value[1].x) - num(b.value[0].x)) * a.value.height) /
+            a.value.width,
+      )
+
+      return {
+        data: a.value,
+        p1: b.value[0],
+        p2: b.value[1],
+        p3: { type: "point", x: x3, y: y3 },
+        aspect: null,
+      }
+    },
     imageShaderError,
     "image(\\ty{image},segment((-5,0),(5,0)))",
   )
   .add(
     ["image", "segment", "r32"],
     "image2d",
-    (a, b, c) => ({
-      data: a.value,
-      p1: b.value[0],
-      p2: b.value[1],
-      aspect: c.value,
-    }),
+    (a, b, c) => {
+      const x3 = sub(
+        b.value[0].x,
+        div(sub(b.value[1].y, b.value[0].y), c.value),
+      )
+      const y3 = add(
+        b.value[0].y,
+        div(sub(b.value[1].x, b.value[0].x), c.value),
+      )
+
+      return {
+        data: a.value,
+        p1: b.value[0],
+        p2: b.value[1],
+        p3: { type: "point", x: x3, y: y3 },
+        aspect: c.value,
+      }
+    },
     imageShaderError,
     "image(\\ty{image},segment((-5,0),(5,0)),\\frac{16}{9})",
   )
@@ -63,24 +97,15 @@ function draw(cv: Cv, val: Val<"image2d">) {
 
   const p1 = cv.toCanvas(unpt(val.p1))
   const p2 = cv.toCanvas(unpt(val.p2))
-  const width = Math.hypot(p1.x - p2.x, p1.y - p2.y)
-  const height =
-    (val.aspect ? 1 / num(val.aspect) : val.data.height / val.data.width) *
-    width
+  const p3 = cv.toCanvas(unpt(val.p3))
 
   const transform = new DOMMatrix()
-  transform.translateSelf(p1.x, p1.y)
-  transform.rotateSelf((180 / Math.PI) * Math.atan2(p2.y - p1.y, p2.x - p1.x))
-  transform.translateSelf(-p1.x, -p1.y)
-  if (height < 0) transform.scaleSelf(1, -1)
-  cv.ctx.setTransform(transform)
-  cv.ctx.drawImage(
-    val.data.src.data,
-    p1.x,
-    (p1.y - height) * Math.sign(height),
-    width,
-    Math.abs(height),
+  transform.setMatrixValue(
+    `matrix(${p2.x - p1.x}, ${p2.y - p1.y}, ${p1.x - p3.x}, ${p1.y - p3.y}, ${p3.x}, ${p3.y})`,
   )
+
+  cv.ctx.setTransform(transform)
+  cv.ctx.drawImage(val.data.src.data, 0, 0, 1, 1)
   cv.ctx.resetTransform()
 }
 
@@ -128,7 +153,7 @@ export default {
             },
             p1: SNANPT,
             p2: SNANPT,
-            aspect: null,
+            p3: SNANPT,
           },
           get glsl(): never {
             return imageShaderError()
@@ -155,10 +180,10 @@ export default {
             TY_INFO.image.write.display(value.data, inner)
             new CmdComma().insertAt(inner.cursor, L)
             TY_INFO.segment.write.display([value.p1, value.p2], inner)
-            if (value.aspect) {
-              new CmdComma().insertAt(inner.cursor, L)
-              inner.num(value.aspect)
-            }
+            // if (value.aspect) {
+            //   new CmdComma().insertAt(inner.cursor, L)
+            //   inner.num(value.aspect)
+            // }
             new CmdBrack("(", ")", null, block).insertAt(props.cursor, L)
           },
         },
@@ -222,9 +247,9 @@ markTranslate(
   "image2d",
   (a, b) => ({
     data: a.value.data,
-    aspect: a.value.aspect,
     p1: translate(b, a.value.p1),
     p2: translate(b, a.value.p2),
+    p3: translate(b, a.value.p3),
   }),
   imageShaderError,
   "image(...)",
@@ -234,9 +259,9 @@ markRotate(
   "image2d",
   (a, b) => ({
     data: a.value.data,
-    aspect: a.value.aspect,
     p1: rotateJs(b, a.value.p1),
     p2: rotateJs(b, a.value.p2),
+    p3: rotateJs(b, a.value.p3),
   }),
   imageShaderError,
   "image(...)",
@@ -246,9 +271,9 @@ markDilate(
   "image2d",
   (a, b) => ({
     data: a.value.data,
-    aspect: a.value.aspect,
     p1: dilateJs(b, a.value.p1),
     p2: dilateJs(b, a.value.p2),
+    p3: dilateJs(b, a.value.p3),
   }),
   imageShaderError,
   "image(...)",
@@ -258,12 +283,9 @@ markReflect(
   "image2d",
   (a, b) => ({
     data: a.value.data,
-    aspect:
-      a.value.aspect ?
-        neg(a.value.aspect)
-      : real(-a.value.data.width / a.value.data.height),
     p1: reflectJs(b, a.value.p1),
     p2: reflectJs(b, a.value.p2),
+    p3: reflectJs(b, a.value.p3),
   }),
   imageShaderError,
   "image(...)",
