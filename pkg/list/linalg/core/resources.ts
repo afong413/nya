@@ -2,7 +2,7 @@ import { h, path, svgx } from "@/jsx"
 
 // AIDEN/TODO: Color icons
 
-export function m32Icon(): HTMLSpanElement {
+export function matrixIcon(): HTMLSpanElement {
   return h(
     "",
     h(
@@ -29,7 +29,7 @@ export function m32Icon(): HTMLSpanElement {
   )
 }
 
-export function v32Icon(): HTMLSpanElement {
+export function vectorIcon(): HTMLSpanElement {
   return h(
     "",
     h(

@@ -1,14 +1,36 @@
 import type { SReal } from "@/eval/ty"
 import { add, mul, neg, sub } from "@/eval/ty/ops"
-import { sqrt } from "./fn"
+import { sqrt } from "./util"
 import { real } from "@/eval/ty/create"
-import { m32Mul } from "./matrix"
+import { mr32Mul } from "./matrix"
+import type { TyWrite } from "@/eval/ty/display"
+import { CmdMatrix } from "@/field/cmd/math/matrix"
+import { Block } from "@/field/model"
+import { L, R } from "@/field/dir"
+
+export const WRITE_VECTOR: TyWrite<SReal[]> = {
+  isApprox(value) {
+    return value.some((x) => x.type === "approx")
+  },
+  display(value, props) {
+    new CmdMatrix(
+      1,
+      value.map((x) => {
+        const block = new Block(null)
+
+        props.at(block.cursor(R)).num(x)
+
+        return block
+      }),
+    ).insertAt(props.cursor, L)
+  },
+}
 
 /**
  * @param a A vector
  * @returns The additive inverse
  */
-export function v32Neg(a: SReal[]): SReal[] {
+export function vr32Neg(a: SReal[]): SReal[] {
   return a.map(neg)
 }
 
@@ -19,7 +41,7 @@ export function v32Neg(a: SReal[]): SReal[] {
  * @param b A vector
  * @returns The sum
  */
-export function v32Add(a: SReal[], b: SReal[]): SReal[] {
+export function vr32Add(a: SReal[], b: SReal[]): SReal[] {
   if (a.length != b.length)
     throw new Error("Can only add vectors of the same size.")
 
@@ -31,7 +53,7 @@ export function v32Add(a: SReal[], b: SReal[]): SReal[] {
  * @param b A scaler
  * @returns The product
  */
-export function v32ScalMul(a: SReal[], b: SReal): SReal[] {
+export function vr32ScalMul(a: SReal[], b: SReal): SReal[] {
   return a.map((x) => mul(x, b))
 }
 
@@ -42,7 +64,7 @@ export function v32ScalMul(a: SReal[], b: SReal): SReal[] {
  * @param b A vector
  * @returns The Euclidean inner product
  */
-export function v32Dot(a: SReal[], b: SReal[]): SReal {
+export function vr32Dot(a: SReal[], b: SReal[]): SReal {
   if (a.length != b.length)
     throw new Error(
       "To take the dot product of two vectors, they must be the same size.",
@@ -55,11 +77,10 @@ export function v32Dot(a: SReal[], b: SReal[]): SReal {
  * @param a A vector
  * @returns The Euclidean norm
  */
-export function v32Norm(a: SReal[]): SReal {
-  return sqrt(v32Dot(a, a))
+export function vr32Norm(a: SReal[]): SReal {
+  return sqrt(vr32Dot(a, a))
 }
 
-// AIDEN/TODO: Implement cross product for 7-dimensional vectors
 /**
  * The cross product is defined only on 3- and 7-dimensional vector spaces (see
  * Hurwitz's Theorem).
@@ -68,7 +89,7 @@ export function v32Norm(a: SReal[]): SReal {
  * @param b A 3-dimensional vector
  * @returns The cross product
  */
-export function v32Cross(a: SReal[], b: SReal[]): SReal[] {
+export function vr32Cross(a: SReal[], b: SReal[]): SReal[] {
   if (a.length === 3 && b.length === 3)
     return [
       sub(mul(a[1]!, b[2]!), mul(a[2]!, b[1]!)),
@@ -86,7 +107,7 @@ export function v32Cross(a: SReal[], b: SReal[]): SReal[] {
       [neg(a[2]!), neg(a[5]!), a[0]!, neg(a[4]!), a[3]!, a[1]!, real(0)],
     ]
 
-    return m32Mul(
+    return mr32Mul(
       m,
       b.map((x) => [x]),
     ).flat()
