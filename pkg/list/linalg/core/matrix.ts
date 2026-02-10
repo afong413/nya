@@ -1,6 +1,6 @@
 import type { GlslValue, JsValue, SReal } from "@/eval/ty"
-import { num, real } from "@/eval/ty/create"
-import { add, mul } from "@/eval/ty/ops"
+import { approx, num, real } from "@/eval/ty/create"
+import { add, div, mul, sub } from "@/eval/ty/ops"
 import { vr32Add, vr32Dot, vr32Neg } from "./vector"
 import type { TyWrite } from "@/eval/ty/display"
 import { CmdMatrix } from "@/field/cmd/math/matrix"
@@ -12,6 +12,7 @@ import type { PropsJs } from "@/eval/js"
 import { coerceValueJs } from "@/eval/ty/coerce"
 import type { Node } from "@/eval/ast/token"
 import { issue } from "@/eval/ops/issue"
+import { isZero } from "@/eval/ty/check"
 
 export const glslIssue = issue("Matrices are not supported in shaders yet.")
 
@@ -37,7 +38,11 @@ export const WRITE_MATRIX: TyWrite<SReal[][]> = {
   },
 }
 
-export function matrixJs(cols: number, valuesRaw: Node[], props: PropsJs): JsValue {
+export function matrixJs(
+  cols: number,
+  valuesRaw: Node[],
+  props: PropsJs,
+): JsValue {
   let values1D = valuesRaw.map((rawValue) => {
     if (rawValue.type === "void") {
       return real(0)
@@ -208,35 +213,34 @@ export function mr32Inv(a: SReal[][]): SReal[][] {
   if (a.length !== a[0]!.length)
     throw new Error("Can only take the inverse of a square matrix.")
 
-  let b = a.map((row) => row.map((x) => num(x)))
+  let b = mr32Id(a.length)
 
-  let c = mr32Id(b.length).map((row) => row.map((x) => num(x)))
-
-  for (let i = 0; i < b.length; i++) {
+  for (let i = 0; i < a.length; i++) {
     let k = i
-    while (b[i]![k]! === 0) {
+    while (isZero(a[i]![i]!)) {
       k++
-      if (k >= b.length) throw new Error("Matrix is not invertable.")
+      if (k >= a.length) throw new Error("Matrix is not invertable.")
     }
+    a.splice(i, 0, a.splice(k, 1)[0]!)
     b.splice(i, 0, b.splice(k, 1)[0]!)
-    c.splice(i, 0, c.splice(k, 1)[0]!)
 
-    for (let j = 0; j < b.length; j++) {
+    for (let j = 0; j < a.length; j++) {
       if (i === j) continue
 
-      const x = b[j]![i]! / b[i]![i]!
+      const x = div(a[j]![i]!, a[i]![i]!)
 
-      for (let k = 0; k < b.length; k++) {
-        b[j]![k]! -= x * b[i]![k]!
-        c[j]![k]! -= x * c[i]![k]!
+      for (let k = 0; k < a.length; k++) {
+        a[j]![k] = sub(a[j]![k]!, mul(x, a[i]![k]!))
+        b[j]![k] = sub(b[j]![k]!, mul(x, b[i]![k]!))
       }
     }
   }
 
-  return c.map((row, i) => row.map((x) => real(x / b[i]![i]!)))
+  return b.map((row, i) => row.map((x) => div(x, b[i]![i]!)))
 }
 
 // AIDEN/TODO: Implement Jordon cananonical form
+// AIDEN/TODO: Rewrite to not be recursive
 export function mr32Pow(a: SReal[][], b: SReal): SReal[][] {
   if (a.length !== a[0]!.length)
     throw new Error("Can only take the power of a square matrix.")
@@ -267,4 +271,8 @@ export function mr32Id(n: number): SReal[][] {
   return Array.apply(null, Array(n)).map((_, i) =>
     Array.apply(null, Array(n)).map((_, j) => real(+(i === j))),
   )
+}
+
+export function mr32Mod(a: SReal[][], b: SReal): SReal[][] {
+  return a.map((row) => row.map((x) => approx(num(x) % num(b))))
 }

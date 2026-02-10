@@ -5,6 +5,7 @@ import {
   OP_CDOT,
   OP_CROSS,
   OP_JUXTAPOSE,
+  OP_MOD,
   OP_NEG,
   OP_ODOT,
   OP_POS,
@@ -25,6 +26,7 @@ import {
   mr32Add,
   matrixJs,
   matrixGlsl,
+  mr32Mod,
 } from "./matrix"
 import {
   vr32Add,
@@ -381,6 +383,14 @@ export default {
       (a, b) => mr32Pow(a.value, b.value),
       glslIssue,
       "A^b",
+    )
+
+    OP_MOD.add(
+      ["mr32", "r32"],
+      "mr32",
+      (a, b) => mr32Mod(a.value, b.value),
+      glslIssue,
+      "A\\operatorname{mod}b"
     )
   },
 } satisfies Package
