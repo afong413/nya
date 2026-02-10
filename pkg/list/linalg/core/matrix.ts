@@ -274,5 +274,7 @@ export function mr32Id(n: number): SReal[][] {
 }
 
 export function mr32Mod(a: SReal[][], b: SReal): SReal[][] {
-  return a.map((row) => row.map((x) => approx(num(x) % num(b))))
+  return a.map((row) =>
+    row.map((x) => approx(((num(x) % num(b)) + num(b)) % num(b))),
+  )
 }
